@@ -21,14 +21,14 @@ public interface JwtService {
     void sendAccessToken(HttpServletResponse response, String accessToken);
 
 
-    String  extractAccessToken(HttpServletRequest request) throws IOException, ServletException;
+    Optional<String>  extractAccessToken(HttpServletRequest request) throws IOException, ServletException;
 
-    String  extractRefreshToken(HttpServletRequest request) throws IOException, ServletException;
+    Optional<String>  extractRefreshToken(HttpServletRequest request) throws IOException, ServletException;
 
-    String  extractUserId(String accessToken);
+    Optional<String> extractUserId(String accessToken);
 
     void setAccessTokenHeader(HttpServletResponse response, String accessToken);
     void setRefreshTokenHeader(HttpServletResponse response, String refreshToken);
 
-    boolean isTokenValid(String token);
+    boolean isValid(String token);
 }

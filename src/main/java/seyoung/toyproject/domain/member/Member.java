@@ -1,11 +1,15 @@
 package seyoung.toyproject.domain.member;
 
 import jakarta.persistence.*;
-import lombok.Getter;
+import lombok.*;
+import seyoung.toyproject.domain.BaseEntity;
 
 @Entity
 @Getter
-public class Member {
+@Builder
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor
+public class Member extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy =  GenerationType.IDENTITY)
@@ -16,9 +20,7 @@ public class Member {
     private String userId;
     private String password;
     private Role role;
-
     private String refreshToken;
-
 
     public void updateRefreshToken(String refreshToken){
         this.refreshToken = refreshToken;
