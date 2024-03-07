@@ -19,6 +19,7 @@ public class Member extends BaseEntity {
     @Column(unique = true)
     private String userId;
     private String password;
+    @Enumerated(EnumType.STRING)
     private Role role;
     private String refreshToken;
 
