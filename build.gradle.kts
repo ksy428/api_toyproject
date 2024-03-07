@@ -26,6 +26,7 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-security")
 	implementation("org.springframework.boot:spring-boot-starter-web")
 	implementation("com.github.gavlyukovskiy:p6spy-spring-boot-starter:1.9.0")
+	implementation("org.springframework.boot:spring-boot-starter-data-redis")
 	implementation("com.auth0:java-jwt:4.4.0")
     testImplementation("org.projectlombok:lombok:1.18.22")
 	compileOnly("org.projectlombok:lombok")
