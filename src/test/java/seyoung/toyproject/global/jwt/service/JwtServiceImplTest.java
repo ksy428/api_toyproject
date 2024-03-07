@@ -4,6 +4,7 @@ import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.interfaces.DecodedJWT;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,6 +14,10 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.annotation.Rollback;
@@ -26,11 +31,13 @@ import seyoung.toyproject.domain.member.Role;
 import seyoung.toyproject.domain.member.repository.MemberRepository;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -106,9 +113,7 @@ class JwtServiceImplTest {
         //then
     }
         
-    
-    
-    
+
     @Test
     //@Rollback(false)
     public void loginTest() throws Exception {
@@ -124,5 +129,132 @@ class JwtServiceImplTest {
         assertThat(result.getResponse().getHeader(accessHeader)).isNotNull();
         assertThat(result.getResponse().getHeader(refreshHeader)).isNotNull();
     }
-        
+
+    @Test
+    public void 유효한토큰들보냈을경우() throws Exception {
+        //given
+        Map<String, String> map = getUserIdPasswordMap(USERID, PASSWORD);
+
+        MvcResult result = perform(LOGIN_URL, APPLICATION_JSON, map)
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andReturn();
+        String accessToken = result.getResponse().getHeader(accessHeader);
+        String refreshToken = result.getResponse().getHeader(refreshHeader);
+        //when
+        MvcResult result2 =  mockMvc.perform(get("/member/1")
+                            .header(refreshHeader, BEARER + refreshToken)
+                            .header(accessHeader, BEARER + accessToken))
+                            .andExpect(status().isOk())
+                            .andReturn();
+
+        String responseAccessToken = result2.getResponse().getHeader(accessHeader);
+        String responseRefreshToken = result2.getResponse().getHeader(refreshHeader);
+
+        //then
+        assertThat(responseAccessToken).isNull();
+        assertThat(responseRefreshToken).isNull();
+        assertThat(result2.getResponse().getStatus()).isEqualTo(HttpServletResponse.SC_OK);
+    }
+
+    @Test
+    public void 유효한_refreshToken_유효하지않은_accessToken_보냈을경우_accessToken_재발급() throws Exception {
+        //given
+        Map<String, String> map = getUserIdPasswordMap(USERID, PASSWORD);
+
+        MvcResult result = perform(LOGIN_URL, APPLICATION_JSON, map)
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andReturn();
+        String accessToken = "asd";
+        String refreshToken = result.getResponse().getHeader(refreshHeader);
+        //when
+
+        MvcResult result2 =  mockMvc.perform(get("/member/1")
+                        .header(refreshHeader, BEARER + refreshToken)
+                        .header(accessHeader, BEARER + accessToken))
+                        .andExpect(status().isForbidden())
+                        .andReturn();
+
+        String responseAccessToken = result2.getResponse().getHeader(accessHeader);
+        String responseRefreshToken = result2.getResponse().getHeader(refreshHeader);
+
+        //then
+        assertThat(responseAccessToken).isNotNull();
+        assertThat(responseRefreshToken).isNull();
+        assertThat(result2.getResponse().getStatus()).isEqualTo(HttpServletResponse.SC_FORBIDDEN);
+    }
+
+    @Test
+    public void 유효하지않은_refreshToken_유효한_accessToken_보냈을경우_인증만성공() throws Exception {
+        //given
+        Map<String, String> map = getUserIdPasswordMap(USERID, PASSWORD);
+
+        MvcResult result = perform(LOGIN_URL, APPLICATION_JSON, map)
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andReturn();
+        String accessToken = result.getResponse().getHeader(accessHeader);
+        String refreshToken = "asfaf";
+        //when
+
+        MvcResult result2 =  mockMvc.perform(get("/member/1")
+                        .header(refreshHeader, BEARER + refreshToken)
+                        .header(accessHeader, BEARER + accessToken))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String responseAccessToken = result2.getResponse().getHeader(accessHeader);
+        String responseRefreshToken = result2.getResponse().getHeader(refreshHeader);
+
+        //then
+        assertThat(responseAccessToken).isNull();
+        assertThat(responseRefreshToken).isNull();
+        assertThat(result2.getResponse().getStatus()).isEqualTo(HttpServletResponse.SC_OK);
+    }
+
+    @Test
+    public void 유효하지않은_refreshToken_유효하지않은_accessToken_보냈을경우() throws Exception {
+        //given
+        Map<String, String> map = getUserIdPasswordMap(USERID, PASSWORD);
+
+        MvcResult result = perform(LOGIN_URL, APPLICATION_JSON, map)
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andReturn();
+        String accessToken = "asfasd";
+        String refreshToken = "asfaf";
+        //when
+
+        MvcResult result2 =  mockMvc.perform(get("/member/1")
+                        .header(refreshHeader, BEARER + refreshToken)
+                        .header(accessHeader, BEARER + accessToken))
+                .andExpect(status().isUnauthorized())
+                .andReturn();
+
+        String responseAccessToken = result2.getResponse().getHeader(accessHeader);
+        String responseRefreshToken = result2.getResponse().getHeader(refreshHeader);
+
+        //then
+        assertThat(responseAccessToken).isNull();
+        assertThat(responseRefreshToken).isNull();
+        assertThat(result2.getResponse().getStatus()).isEqualTo(HttpServletResponse.SC_UNAUTHORIZED);
+    }
+
+    @Test
+    public void 토큰없이요청왔을경우() throws Exception {
+        //given
+        //when
+        MvcResult result2 =  mockMvc.perform(get("/member/1"))
+                .andExpect(status().isUnauthorized())
+                .andReturn();
+
+        String responseAccessToken = result2.getResponse().getHeader(accessHeader);
+        String responseRefreshToken = result2.getResponse().getHeader(refreshHeader);
+
+        //then
+        assertThat(responseAccessToken).isNull();
+        assertThat(responseRefreshToken).isNull();
+        assertThat(result2.getResponse().getStatus()).isEqualTo(HttpServletResponse.SC_UNAUTHORIZED);
+    }
 }
