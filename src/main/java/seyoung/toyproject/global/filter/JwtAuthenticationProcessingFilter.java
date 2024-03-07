@@ -17,6 +17,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import seyoung.toyproject.domain.member.Member;
 import seyoung.toyproject.domain.member.repository.MemberRepository;
 import seyoung.toyproject.global.jwt.service.JwtService;
+import seyoung.toyproject.global.redis.service.RedisService;
 
 import java.io.IOException;
 
@@ -25,6 +26,7 @@ public class JwtAuthenticationProcessingFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final MemberRepository memberRepository;
+    private final RedisService redisService;
 
     private GrantedAuthoritiesMapper authoritiesMapper = new NullAuthoritiesMapper();
 
@@ -35,38 +37,40 @@ public class JwtAuthenticationProcessingFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
             return;
         }
-        String refreshToken = jwtService.extractRefreshToken(request).filter(jwtService::isValid).orElse(null);
 
-
-        if(refreshToken != null){
-            checkRefreshTokenAndReIssueAccessToken(response, refreshToken);
-            return;
+        String accessToken = jwtService.extractAccessToken(request).filter(jwtService::isValid).orElse(null);
+        String userId = jwtService.extractUserId(accessToken).orElse(null);
+        Boolean isAccessTokenInRedis = false;
+        if(accessToken != null){
+            if(accessToken.equals(redisService.getAccessTokenByUserId(userId))){
+                isAccessTokenInRedis = true;
+            }
         }
-
-        checkAccessTokenAndAuthentication(request, response, filterChain);
-
+        // accessToken 유효
+        if(isAccessTokenInRedis){
+            memberRepository.findByUserId(userId).ifPresent(
+                    this::saveAuthentication
+            );
+        }
+        else{ // accessToken 유효하지않음. refreshToken 체크
+            String refreshToken = jwtService.extractRefreshToken(request).filter(jwtService::isValid).orElse(null);
+            //유효한 refreshToken 이면 accessToken 재발급. 403응답
+            if(refreshToken != null){
+                checkRefreshTokenAndReIssueAccessToken(response, refreshToken);
+            }
+            //accessToken, refreshToken 둘다 유효하지않음. 401응답
+            else{
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            }
+        }
     }
-
-
-
-
-    private void checkAccessTokenAndAuthentication(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
-        jwtService.extractAccessToken(request).filter(jwtService::isValid).ifPresent(
-
-                accessToken -> jwtService.extractUserId(accessToken).ifPresent(
-
-                        userId -> memberRepository.findByUserId(userId).ifPresent(
-
-                                this::saveAuthentication
-                        )
-                )
+    //DB에 저장한 refreshToken 이 맞는지 유효성 체크. 맞으면 accessToken 발급
+    private void checkRefreshTokenAndReIssueAccessToken(HttpServletResponse response, String refreshToken) {
+        memberRepository.findByRefreshToken(refreshToken).ifPresent(
+                member -> jwtService.sendAccessToken(response, jwtService.createAccessToken(member.getUserId()))
         );
-
-        filterChain.doFilter(request,response);
     }
-
-
-
+    //인증생성
     private void saveAuthentication(Member member) {
         UserDetails user = User.builder()
                 .username(member.getUserId())
@@ -75,20 +79,8 @@ public class JwtAuthenticationProcessingFilter extends OncePerRequestFilter {
                 .build();
 
         Authentication authentication = new UsernamePasswordAuthenticationToken(user, null,authoritiesMapper.mapAuthorities(user.getAuthorities()));
-
-
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(authentication);
         SecurityContextHolder.setContext(context);
-    }
-
-    private void checkRefreshTokenAndReIssueAccessToken(HttpServletResponse response, String refreshToken) {
-
-
-        memberRepository.findByRefreshToken(refreshToken).ifPresent(
-                member -> jwtService.sendAccessToken(response, jwtService.createAccessToken(member.getUserId()))
-        );
-
-
     }
 }

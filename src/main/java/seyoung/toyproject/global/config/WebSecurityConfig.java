@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -20,12 +21,15 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.logout.LogoutFilter;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import seyoung.toyproject.domain.member.repository.MemberRepository;
 import seyoung.toyproject.global.filter.JsonUsernamePasswordAuthenticationFilter;
 import seyoung.toyproject.global.filter.JwtAuthenticationProcessingFilter;
 import seyoung.toyproject.global.handler.LoginFailureHandler;
 import seyoung.toyproject.global.handler.LoginSuccessJWTProvideHandler;
 import seyoung.toyproject.global.jwt.service.JwtService;
+import seyoung.toyproject.global.redis.service.RedisService;
 import seyoung.toyproject.global.security.service.UserDetailsServiceImpl;
 
 
@@ -33,17 +37,28 @@ import seyoung.toyproject.global.security.service.UserDetailsServiceImpl;
 @Configuration
 @RequiredArgsConstructor
 @Slf4j
-public class WebSecurityConfig {
+public class WebSecurityConfig implements WebMvcConfigurer {
     private final ObjectMapper objectMapper;
     private final UserDetailsServiceImpl userDetailsService;
     private final MemberRepository memberRepository;
     private final JwtService jwtService;
+    private final RedisService redisService;
 
     @Bean
     PasswordEncoder passwordEncoder(){
         return new BCryptPasswordEncoder();
     }
 
+
+    @Override
+    public void addCorsMappings(CorsRegistry registry) {
+        registry.addMapping("/**")
+                .allowedOriginPatterns("*")
+                .allowedMethods("*")
+                .allowedHeaders("*")
+                .allowCredentials(true)
+                .exposedHeaders("Authorization","Authorization-refresh");
+    }
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception{
@@ -57,10 +72,7 @@ public class WebSecurityConfig {
                         authorizeHttpRequests
                                 .requestMatchers("/","/login", "/signUp").permitAll()
                                 .anyRequest().authenticated()
-
-
                 )
-
                 .addFilterAfter(jsonUsernamePasswordLoginFilter(), LogoutFilter.class)
                 .addFilterBefore(jwtAuthenticationProcessingFilter(), JsonUsernamePasswordAuthenticationFilter.class)
                 ;
@@ -100,7 +112,7 @@ public class WebSecurityConfig {
 
     @Bean
     public JwtAuthenticationProcessingFilter jwtAuthenticationProcessingFilter(){
-        JwtAuthenticationProcessingFilter jsonUsernamePasswordLoginFilter = new JwtAuthenticationProcessingFilter(jwtService, memberRepository);
+        JwtAuthenticationProcessingFilter jsonUsernamePasswordLoginFilter = new JwtAuthenticationProcessingFilter(jwtService, memberRepository, redisService);
         return jsonUsernamePasswordLoginFilter;
     }
 }

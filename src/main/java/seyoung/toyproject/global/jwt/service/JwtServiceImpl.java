@@ -14,8 +14,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import seyoung.toyproject.domain.member.repository.MemberRepository;
+import seyoung.toyproject.global.redis.service.RedisService;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -47,13 +49,19 @@ public class JwtServiceImpl implements JwtService{
     private final MemberRepository memberRepository;
     private final ObjectMapper objectMapper;
 
+    private final RedisService redisService;
+
     @Override
     public String createAccessToken(String userId) {
-        return JWT.create()
+
+        String accessToken = JWT.create()
                 .withSubject(ACCESS_TOKEN_SUBJECT)
                 .withExpiresAt(new Date(System.currentTimeMillis() + accessTokenValidityInSeconds * 1000))
                 .withClaim(USERID_CLAIM, userId)
                 .sign(Algorithm.HMAC512(secret));
+        Duration duration = Duration.ofMillis(1000 * accessTokenValidityInSeconds);
+        redisService.setAccessToken(userId, accessToken, duration);
+        return accessToken;
     }
 
     @Override
@@ -84,43 +92,27 @@ public class JwtServiceImpl implements JwtService{
     @Override
     public void sendAccessAndRefreshToken(HttpServletResponse response, String accessToken, String refreshToken){
         response.setStatus(HttpServletResponse.SC_OK);
-
         setAccessTokenHeader(response, accessToken);
         setRefreshTokenHeader(response, refreshToken);
-
-
-        Map<String, String> tokenMap = new HashMap<>();
-        tokenMap.put(ACCESS_TOKEN_SUBJECT, accessToken);
-        tokenMap.put(REFRESH_TOKEN_SUBJECT, refreshToken);
-
     }
 
     @Override
     public void sendAccessToken(HttpServletResponse response, String accessToken){
-        response.setStatus(HttpServletResponse.SC_OK);
-
+        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
         setAccessTokenHeader(response, accessToken);
-
-
-        Map<String, String> tokenMap = new HashMap<>();
-        tokenMap.put(ACCESS_TOKEN_SUBJECT, accessToken);
     }
 
     @Override
     public Optional<String> extractAccessToken(HttpServletRequest request) {
         return Optional.ofNullable(request.getHeader(accessHeader)).filter(
-
                 accessToken -> accessToken.startsWith(BEARER)
-
         ).map(accessToken -> accessToken.replace(BEARER, ""));
     }
 
     @Override
     public Optional<String> extractRefreshToken(HttpServletRequest request) {
         return Optional.ofNullable(request.getHeader(refreshHeader)).filter(
-
                 refreshToken -> refreshToken.startsWith(BEARER)
-
         ).map(refreshToken -> refreshToken.replace(BEARER, ""));
     }
 
