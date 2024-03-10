@@ -21,11 +21,15 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.logout.LogoutFilter;
+import org.springframework.security.web.authentication.logout.LogoutHandler;
+import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import seyoung.toyproject.domain.member.repository.MemberRepository;
 import seyoung.toyproject.global.filter.JsonUsernamePasswordAuthenticationFilter;
 import seyoung.toyproject.global.filter.JwtAuthenticationProcessingFilter;
+import seyoung.toyproject.global.handler.CustomLogoutHandler;
+import seyoung.toyproject.global.handler.CustomLogoutSuccessHandler;
 import seyoung.toyproject.global.handler.LoginFailureHandler;
 import seyoung.toyproject.global.handler.LoginSuccessJWTProvideHandler;
 import seyoung.toyproject.global.jwt.service.JwtService;
@@ -70,12 +74,20 @@ public class WebSecurityConfig implements WebMvcConfigurer {
 
                 .authorizeHttpRequests((authorizeHttpRequests) ->
                         authorizeHttpRequests
-                                .requestMatchers("/","/login", "/signUp").permitAll()
+                                .requestMatchers("/", "/signUp").permitAll()
                                 .anyRequest().authenticated()
                 )
+                // LogoutFilter -> jwtAuthenticationProcessingFilter -> jsonUsernamePasswordLoginFilter 순서
+                .addFilterAfter(jwtAuthenticationProcessingFilter(), LogoutFilter.class)
                 .addFilterAfter(jsonUsernamePasswordLoginFilter(), LogoutFilter.class)
-                .addFilterBefore(jwtAuthenticationProcessingFilter(), JsonUsernamePasswordAuthenticationFilter.class)
-                ;
+                .logout((logoutConfigurer ) ->
+                        logoutConfigurer
+                                .logoutUrl("/logout")
+                                .addLogoutHandler(customLogoutHandler())
+                                .logoutSuccessHandler(customLogoutSuccessHandler())
+                                .invalidateHttpSession(true)
+                                .permitAll()
+                );
         return http.build();
     }
 
@@ -115,4 +127,9 @@ public class WebSecurityConfig implements WebMvcConfigurer {
         JwtAuthenticationProcessingFilter jsonUsernamePasswordLoginFilter = new JwtAuthenticationProcessingFilter(jwtService, memberRepository, redisService);
         return jsonUsernamePasswordLoginFilter;
     }
+
+    @Bean
+    public CustomLogoutHandler customLogoutHandler() {return new CustomLogoutHandler(jwtService, redisService, memberRepository);}
+    @Bean
+    public CustomLogoutSuccessHandler customLogoutSuccessHandler() {return new CustomLogoutSuccessHandler(jwtService, redisService);}
 }

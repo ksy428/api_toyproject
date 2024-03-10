@@ -38,6 +38,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -173,7 +174,7 @@ class JwtServiceImplTest {
         MvcResult result2 =  mockMvc.perform(get("/member/1")
                         .header(refreshHeader, BEARER + refreshToken)
                         .header(accessHeader, BEARER + accessToken))
-                        .andExpect(status().isForbidden())
+                        .andExpect(status().isUnauthorized())
                         .andReturn();
 
         String responseAccessToken = result2.getResponse().getHeader(accessHeader);
@@ -182,7 +183,7 @@ class JwtServiceImplTest {
         //then
         assertThat(responseAccessToken).isNotNull();
         assertThat(responseRefreshToken).isNull();
-        assertThat(result2.getResponse().getStatus()).isEqualTo(HttpServletResponse.SC_FORBIDDEN);
+        assertThat(result2.getResponse().getStatus()).isEqualTo(HttpServletResponse.SC_UNAUTHORIZED);
     }
 
     @Test
@@ -253,6 +254,77 @@ class JwtServiceImplTest {
         String responseRefreshToken = result2.getResponse().getHeader(refreshHeader);
 
         //then
+        assertThat(responseAccessToken).isNull();
+        assertThat(responseRefreshToken).isNull();
+        assertThat(result2.getResponse().getStatus()).isEqualTo(HttpServletResponse.SC_UNAUTHORIZED);
+    }
+
+    @Test
+    public void 로그아웃_성공() throws Exception {
+        //given
+        Map<String, String> map = getUserIdPasswordMap(USERID, PASSWORD);
+
+        MvcResult result = perform(LOGIN_URL, APPLICATION_JSON, map)
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andReturn();
+        //when
+        String accessToken = result.getResponse().getHeader(accessHeader);
+        String refreshToken = result.getResponse().getHeader(refreshHeader);
+        MvcResult result2 =  mockMvc.perform(post("/logout")
+                        .header(refreshHeader, BEARER + refreshToken)
+                        .header(accessHeader, BEARER + accessToken))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String responseAccessToken = result2.getResponse().getHeader(accessHeader);
+        String responseRefreshToken = result2.getResponse().getHeader(refreshHeader);
+        //then
+
+        assertThat(responseAccessToken).isNull();
+        assertThat(responseRefreshToken).isNull();
+        assertThat(result2.getResponse().getStatus()).isEqualTo(HttpServletResponse.SC_OK);
+    }
+
+    @Test
+    public void 로그아웃_요청_토큰없이() throws Exception {
+        //given
+        //when
+        MvcResult result2 =  mockMvc.perform(post("/logout"))
+                .andExpect(status().isUnauthorized())
+                .andReturn();
+
+        String responseAccessToken = result2.getResponse().getHeader(accessHeader);
+        String responseRefreshToken = result2.getResponse().getHeader(refreshHeader);
+
+        //then
+        assertThat(responseAccessToken).isNull();
+        assertThat(responseRefreshToken).isNull();
+        assertThat(result2.getResponse().getStatus()).isEqualTo(HttpServletResponse.SC_UNAUTHORIZED);
+    }
+
+    @Test
+    public void 로그아웃_요청_유효하지않은_accessToken() throws Exception {
+        //given
+        Map<String, String> map = getUserIdPasswordMap(USERID, PASSWORD);
+
+        MvcResult result = perform(LOGIN_URL, APPLICATION_JSON, map)
+                .andDo(print())
+                .andExpect(status().isOk())
+                .andReturn();
+        //when
+        String accessToken = "asffsf";
+        String refreshToken = result.getResponse().getHeader(refreshHeader);
+        MvcResult result2 =  mockMvc.perform(post("/logout")
+                        .header(refreshHeader, BEARER + refreshToken)
+                        .header(accessHeader, BEARER + accessToken))
+                .andExpect(status().isUnauthorized())
+                .andReturn();
+
+        String responseAccessToken = result2.getResponse().getHeader(accessHeader);
+        String responseRefreshToken = result2.getResponse().getHeader(refreshHeader);
+        //then
+
         assertThat(responseAccessToken).isNull();
         assertThat(responseRefreshToken).isNull();
         assertThat(result2.getResponse().getStatus()).isEqualTo(HttpServletResponse.SC_UNAUTHORIZED);

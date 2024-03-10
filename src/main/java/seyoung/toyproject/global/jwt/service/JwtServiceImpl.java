@@ -98,7 +98,7 @@ public class JwtServiceImpl implements JwtService{
 
     @Override
     public void sendAccessToken(HttpServletResponse response, String accessToken){
-        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         setAccessTokenHeader(response, accessToken);
     }
 

@@ -21,9 +21,9 @@ public interface JwtService {
     void sendAccessToken(HttpServletResponse response, String accessToken);
 
 
-    Optional<String>  extractAccessToken(HttpServletRequest request) throws IOException, ServletException;
+    Optional<String>  extractAccessToken(HttpServletRequest request);
 
-    Optional<String>  extractRefreshToken(HttpServletRequest request) throws IOException, ServletException;
+    Optional<String>  extractRefreshToken(HttpServletRequest request);
 
     Optional<String> extractUserId(String accessToken);
 

@@ -5,6 +5,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.mapping.GrantedAuthoritiesMapper;
@@ -22,6 +23,7 @@ import seyoung.toyproject.global.redis.service.RedisService;
 import java.io.IOException;
 
 @RequiredArgsConstructor
+@Slf4j
 public class JwtAuthenticationProcessingFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
@@ -33,6 +35,7 @@ public class JwtAuthenticationProcessingFilter extends OncePerRequestFilter {
     private final String NO_CHECK_URL = "/login";
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
+        log.info("reqUrl: {}",  request.getRequestURI());
         if(request.getRequestURI().equals(NO_CHECK_URL)) {
             filterChain.doFilter(request, response);
             return;
@@ -54,14 +57,12 @@ public class JwtAuthenticationProcessingFilter extends OncePerRequestFilter {
         }
         else{ // accessToken 유효하지않음. refreshToken 체크
             String refreshToken = jwtService.extractRefreshToken(request).filter(jwtService::isValid).orElse(null);
-            //유효한 refreshToken 이면 accessToken 재발급. 403응답
+            //유효한 refreshToken 이면 accessToken 재발급. 401응답
             if(refreshToken != null){
                 checkRefreshTokenAndReIssueAccessToken(response, refreshToken);
             }
             //accessToken, refreshToken 둘다 유효하지않음. 401응답
-            else{
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            }
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         }
     }
     //DB에 저장한 refreshToken 이 맞는지 유효성 체크. 맞으면 accessToken 발급
